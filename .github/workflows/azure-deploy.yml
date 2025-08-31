@@ -5,6 +5,12 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+name: Deploy quadportal to Azure Web App
+
+permissions:
+  id-token: write
+  contents: read
+  
 env:
   AZURE_WEBAPP_NAME: quadportal
   AZURE_WEBAPP_PACKAGE_PATH: dist
