@@ -59,6 +59,17 @@ const getValFromRow = (row, key) => {
   return "";
 };
 
+// Helper: get region/country value from a row, respecting KEY_ALIAS and normalisation
+const getRegionFromRow = (row) => {
+  return clean(
+    getValFromRow(row, "region") ||
+    getValFromRow(row, "Region") ||
+    getValFromRow(row, "region/country") ||
+    getValFromRow(row, "Region/Country") ||
+    ""
+  );
+};
+
 function useSheetData(url) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -129,9 +140,12 @@ export default function App() {
 
   const regions = useMemo(() => {
     const set = new Set(
-      rows.map((r) => (r[normaliseKey("region")] || r[normaliseKey("region/country")] || "")).filter(Boolean)
+      rows
+        .map((r) => getRegionFromRow(r))
+        .filter(Boolean)
+        .map((s) => s.trim())
     );
-    return ["all", ...Array.from(set).sort()];
+    return ["all", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [rows]);
 
   const list = useMemo(() => {
@@ -139,8 +153,8 @@ export default function App() {
     if (q.trim()) l = fuse.search(q).map((x) => x.item);
     if (region !== "all") {
       l = l.filter((r) => {
-        const rc = r[normaliseKey("Region/Country")] || r[normaliseKey("Region")] || "";
-        return rc.toLowerCase() === region.toLowerCase();
+        const rc = (getRegionFromRow(r) || "").toLowerCase();
+        return rc === region.toLowerCase();
       });
     }
     return l;
@@ -230,7 +244,7 @@ export default function App() {
 function VenueCard({ v }) {
   const [logoOk, setLogoOk] = useState(true);
   const g = (k) => getValFromRow(v, k);
-  const brand = g("brand_name") || g("Brand Name");
+  const brand = g("brand_name") || g("Brand Name") || g("slug") || "Unknown";
   const widget = g("booking_widget_url") || g("Widget URL (canonical)") || g("iFrame URL") || g("View URL");
   const logoFull = g("logo_url_full");
   const favicon = g("favicon_url");
@@ -255,7 +269,8 @@ function VenueCard({ v }) {
 
   const top = {
     height: 160,            // fixed well height to keep cards consistent
-    background: "#f3f4f6",
+    background: "#ffffff",
+    borderBottom: "1px solid #f1f5f9",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -282,7 +297,7 @@ function VenueCard({ v }) {
           <img
             src={logoFull}
             alt={`${brand} logo`}
-            style={{ maxWidth: "90%", maxHeight: "90%", width: "auto", height: "auto", objectFit: "contain", display: "block" }}
+            style={{ maxWidth: "90%", maxHeight: "90%", width: "auto", height: "auto", objectFit: "contain", display: "block", background: "#fff", boxShadow: "0 0 0 1px rgba(0,0,0,0.04)" }}
             loading="lazy"
             onError={() => setLogoOk(false)}
           />
