@@ -1,11 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
 import Fuse from "fuse.js";
-import { ChevronRight, Globe, Phone, Mail, MapPin, ExternalLink } from "lucide-react";
+import { ChevronRight, Globe, Phone, Mail, MapPin, ExternalLink, Clock } from "lucide-react";
 
-// Your published Google Sheet CSV
+// Google Sheet CSV (portal_data tab). Replace PORTAL_GID_HERE with the gid of the portal_data sheet.
 const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/1f6hQNKdqnth8BIATF8UR2TZ-TUWRPCitBCrTLTDeL1g/export?format=csv&gid=0";
+  "https://docs.google.com/spreadsheets/d/1f6hQNKdqnth8BIATF8UR2TZ-TUWRPCitBCrTLTDeL1g/export?format=csv&gid=1694382803";
+
+// Optional: drop brand logos into /public and set their paths here
+const LOGO_LIGHT = "/qdn_logo.png";      // dark text logo for light mode (optional)
+const LOGO_DARK  = "/quad_logo_highreswhite.png"; // white logo for dark headers (optional)
+const ACCENT = "#E31C79"; // Quadranet pink (from logo)
 
 // Fallback proxies – handy for local preview environments that block cross-origin fetches.
 const CORS_PROXIES = [
@@ -20,7 +25,39 @@ const clean = (v) => {
   return bad.has(s.toUpperCase()) ? "" : s;
 };
 
+const toAbsUrl = (base, src) => {
+  try {
+    return new URL(src, base).toString();
+  } catch {
+    return src;
+  }
+};
+
 const normaliseKey = (k) => k?.toString().trim().toLowerCase().replace(/\s+/g, "_") ?? "";
+
+// Map legacy headers to canonical keys we use in the UI
+const KEY_ALIAS = {
+  "brand name": "brand_name",
+  "official website": "website_url",
+  "website url": "website_url",
+  "maps url": "maps_url",
+  "widget url (canonical)": "booking_widget_url",
+  "iframe url": "booking_widget_url",
+  "view url": "booking_widget_url",
+  "logo url": "logo_url_full",
+  "area__town__city": "area_town_city",
+  "search_tags": "tags",
+  "region/country": "region",
+};
+
+const getValFromRow = (row, key) => {
+  const nk = normaliseKey(key);
+  const direct = row[nk];
+  if (direct) return clean(direct);
+  const alias = KEY_ALIAS[nk];
+  if (alias) return clean(row[normaliseKey(alias)] || "");
+  return "";
+};
 
 function useSheetData(url) {
   const [rows, setRows] = useState([]);
@@ -75,15 +112,24 @@ export default function App() {
   const [region, setRegion] = useState("all");
 
   const fuse = useMemo(() => {
-    const keys = ["brand_name", "slug", "address", "region/country", "region", "menu_url", "official_website"].map(
-      normaliseKey
-    );
+    const keys = [
+      "brand_name",
+      "slug",
+      "area_town_city",
+      "location_address",
+      "website_url",
+      "tags",
+      "extra_tags",
+      "cuisine",
+      "opening_hours",
+      "region",
+    ].map(normaliseKey);
     return new Fuse(rows, { keys, threshold: 0.35, includeScore: true, ignoreLocation: true });
   }, [rows]);
 
   const regions = useMemo(() => {
     const set = new Set(
-      rows.map((r) => r[normaliseKey("Region/Country")] || r[normaliseKey("Region")] || "").filter(Boolean)
+      rows.map((r) => (r[normaliseKey("region")] || r[normaliseKey("region/country")] || "")).filter(Boolean)
     );
     return ["all", ...Array.from(set).sort()];
   }, [rows]);
@@ -112,8 +158,23 @@ export default function App() {
           borderBottom: "1px solid #e5e7eb",
         }}
       >
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "12px 16px", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Quadranet Booking Widgets • Portal (MVP)</h1>
+        <div
+          style={{
+            maxWidth: 1200,
+            margin: "0 auto",
+            padding: "12px 16px",
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Logo (optional) */}
+            <img src={LOGO_LIGHT} alt="Quadranet" style={{ height: 28, width: "auto" }} onError={(e)=>{e.currentTarget.style.display='none';}} />
+            <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Quadranet Booking Widgets • Portal (MVP)</h1>
+          </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
               placeholder="Search by name, place, tag…"
@@ -136,28 +197,31 @@ export default function App() {
         </div>
       </header>
 
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "16px" }}>
-        {loading && <p style={{ color: "#4b5563" }}>Loading venues…</p>}
-        {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
-        {!loading && !error && (
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <div style={{
-              display: "grid",
-              gap: 16,
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-              alignItems: "start",
-              justifyItems: "stretch",
-              width: "100%",
-              maxWidth: 1200,
-              margin: "0 auto",
-            }}>
+      <main style={{ width: "100%", boxSizing: "border-box" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: 16 }}>
+          {loading && <p style={{ color: "#4b5563" }}>Loading venues…</p>}
+          {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
+
+          {!loading && !error && (
+            <div
+              style={{
+                display: "grid",
+                gap: 20,
+                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                alignItems: "start",
+                justifyItems: "stretch",
+              }}
+            >
               {list.map((v, i) => (
                 <VenueCard key={i} v={v} />
               ))}
             </div>
-          </div>
-        )}
-        {!loading && !error && list.length === 0 && <p style={{ color: "#6b7280" }}>No matches. Try a broader search.</p>}
+          )}
+
+          {!loading && !error && list.length === 0 && (
+            <p style={{ color: "#6b7280" }}>No matches. Try a broader search.</p>
+          )}
+        </div>
       </main>
     </div>
   );
@@ -165,18 +229,21 @@ export default function App() {
 
 function VenueCard({ v }) {
   const [logoOk, setLogoOk] = useState(true);
-  const g = (k) => clean(v[normaliseKey(k)] || "");
-  const brand = g("Brand Name") || g("brand_name");
-  const widget = g("Widget URL (canonical)") || g("iFrame URL") || g("View URL");
-  const logo = g("Logo URL");
-  const address = g("Address");
-  const phone = g("Phone");
-  const email = g("Email");
-  const website = g("Official Website") || g("Website URL");
-  const menu = g("Menu URL");
-  const maps = g("Maps URL");
-  const region = g("Region/Country") || g("Region");
-  const confidence = g("Confidence");
+  const g = (k) => getValFromRow(v, k);
+  const brand = g("brand_name") || g("Brand Name");
+  const widget = g("booking_widget_url") || g("Widget URL (canonical)") || g("iFrame URL") || g("View URL");
+  const logoFull = g("logo_url_full");
+  const favicon = g("favicon_url");
+  const address = g("location_address") || g("Address");
+  const website = g("website_url") || g("Official Website") || g("Website URL");
+  const menu = g("menu_url");
+  const maps = g("maps_url") || g("Maps URL");
+  const region = g("region") || g("Region/Country") || g("Region");
+  const cuisine = g("cuisine");
+  const opening = g("opening_hours") || g("Opening Hours");
+  const tagsRaw = g("tags") || g("search_tags") || g("Tags");
+  const tags = tagsRaw ? tagsRaw.split(/[,|]/).map((t) => t.trim()).filter(Boolean) : [];
+  const tripadvisor = g("tripadvisor_url");
 
   const card = {
     border: "1px solid #e5e7eb",
@@ -187,16 +254,17 @@ function VenueCard({ v }) {
   };
 
   const top = {
-    height: 120,
+    height: 160,            // fixed well height to keep cards consistent
     background: "#f3f4f6",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+    padding: 12,
   };
 
   const btn = {
-    background: "#111827",
+    background: ACCENT,
     color: "#fff",
     padding: "8px 12px",
     borderRadius: 8,
@@ -204,19 +272,26 @@ function VenueCard({ v }) {
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
+    boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
   };
 
   return (
     <div style={card}>
       <div style={top}>
-        {logo && logoOk ? (
-          // eslint-disable-next-line jsx-a11y/img-redundant-alt
+        {logoFull && logoOk ? (
           <img
-            src={logo}
+            src={logoFull}
             alt={`${brand} logo`}
-            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            style={{ maxWidth: "90%", maxHeight: "90%", width: "auto", height: "auto", objectFit: "contain", display: "block" }}
             loading="lazy"
             onError={() => setLogoOk(false)}
+          />
+        ) : favicon ? (
+          <img
+            src={favicon}
+            alt={`${brand} icon`}
+            style={{ width: 64, height: 64, objectFit: "contain", display: "block", opacity: 0.9 }}
+            loading="lazy"
           />
         ) : (
           <div style={{ color: "#9ca3af", fontSize: 12 }}>No logo</div>
@@ -225,9 +300,14 @@ function VenueCard({ v }) {
 
       <div style={{ padding: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>{brand}</h2>
-          {region && (
-            <span style={{ fontSize: 12, padding: "2px 8px", border: "1px solid #e5e7eb", borderRadius: 12, color: "#374151" }}>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>{brand}</h2>
+            {cuisine && (
+              <div style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>{cuisine}</div>
+            )}
+          </div>
+          {(region) && (
+            <span style={{ fontSize: 12, padding: "2px 8px", border: "1px solid #e5e7eb", borderRadius: 12, color: "#374151", whiteSpace: "nowrap" }}>
               {region}
             </span>
           )}
@@ -238,18 +318,13 @@ function VenueCard({ v }) {
             <MapPin size={16} /> <span>{address}</span>
           </div>
         )}
+        {opening && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6b7280", marginTop: 6 }}>
+            <Clock size={16} /> <span>{opening}</span>
+          </div>
+        )}
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 14, color: "#374151", marginTop: 8 }}>
-          {phone && (
-            <a href={`tel:${phone.replace(/\s+/g, "")}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
-              <Phone size={16} /> {phone}
-            </a>
-          )}
-          {email && (
-            <a href={`mailto:${email}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
-              <Mail size={16} /> Email
-            </a>
-          )}
           {website && (
             <a href={website} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
               <Globe size={16} /> Website <ExternalLink size={14} />
@@ -265,7 +340,35 @@ function VenueCard({ v }) {
               Map <ExternalLink size={14} />
             </a>
           )}
+          {tripadvisor && (
+            <a href={tripadvisor} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
+              Tripadvisor <ExternalLink size={14} />
+            </a>
+          )}
         </div>
+
+        {tags.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+            {tags.map((t, idx) => (
+              <span
+                key={idx}
+                style={{
+                  fontSize: 12,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  border: "1px solid #f2c2d7",
+                  background: "#fff0f6",
+                  color: "#7a2448",
+                }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+        {false && (
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>{/* other */}</div>
+        )}
 
         <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           {widget ? (
@@ -275,7 +378,6 @@ function VenueCard({ v }) {
           ) : (
             <span style={{ fontSize: 12, color: "#9ca3af" }}>No widget URL</span>
           )}
-          {confidence && <span style={{ fontSize: 12, color: "#6b7280" }}>{confidence}</span>}
         </div>
       </div>
     </div>
