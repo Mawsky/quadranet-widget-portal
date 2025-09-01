@@ -59,13 +59,13 @@ const getValFromRow = (row, key) => {
   return "";
 };
 
-// Helper: get region/country value from a row, respecting KEY_ALIAS and normalisation
-const getRegionFromRow = (row) => {
+// Helper: get area/town/city from a row, respecting aliases
+const getCityFromRow = (row) => {
   return clean(
-    getValFromRow(row, "region") ||
-    getValFromRow(row, "Region") ||
-    getValFromRow(row, "region/country") ||
-    getValFromRow(row, "Region/Country") ||
+    getValFromRow(row, "area_town_city") ||
+    getValFromRow(row, "area/town/city") ||
+    getValFromRow(row, "Area/Town/City") ||
+    getValFromRow(row, "area__town__city") ||
     ""
   );
 };
@@ -120,7 +120,7 @@ function useSheetData(url) {
 export default function App() {
   const { rows, loading, error } = useSheetData(SHEET_CSV_URL);
   const [q, setQ] = useState("");
-  const [region, setRegion] = useState("all");
+  const [city, setCity] = useState("all");
 
   const fuse = useMemo(() => {
     const keys = [
@@ -138,10 +138,10 @@ export default function App() {
     return new Fuse(rows, { keys, threshold: 0.35, includeScore: true, ignoreLocation: true });
   }, [rows]);
 
-  const regions = useMemo(() => {
+  const areas = useMemo(() => {
     const set = new Set(
       rows
-        .map((r) => getRegionFromRow(r))
+        .map((r) => getCityFromRow(r))
         .filter(Boolean)
         .map((s) => s.trim())
     );
@@ -151,14 +151,14 @@ export default function App() {
   const list = useMemo(() => {
     let l = rows;
     if (q.trim()) l = fuse.search(q).map((x) => x.item);
-    if (region !== "all") {
+    if (city !== "all") {
       l = l.filter((r) => {
-        const rc = (getRegionFromRow(r) || "").toLowerCase();
-        return rc === region.toLowerCase();
+        const c = (getCityFromRow(r) || "").toLowerCase();
+        return c === city.toLowerCase();
       });
     }
     return l;
-  }, [rows, q, region, fuse]);
+  }, [rows, q, city, fuse]);
 
   return (
     <div style={{ minHeight: "100vh", background: "#f6f7f9" }}>
@@ -187,7 +187,7 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {/* Logo (optional) */}
             <img src={LOGO_LIGHT} alt="Quadranet" style={{ height: 28, width: "auto" }} onError={(e)=>{e.currentTarget.style.display='none';}} />
-            <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Quadranet Booking Widgets • Portal (MVP)</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Quadranet Booking Portal (MVP)</h1>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
@@ -197,13 +197,13 @@ export default function App() {
               style={{ padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, width: 320 }}
             />
             <select
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
               style={{ padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6 }}
             >
-              {regions.map((r) => (
-                <option key={r} value={r}>
-                  {r === "all" ? "All regions" : r}
+              {areas.map((a) => (
+                <option key={a} value={a}>
+                  {a === "all" ? "All areas" : a}
                 </option>
               ))}
             </select>
@@ -252,7 +252,7 @@ function VenueCard({ v }) {
   const website = g("website_url") || g("Official Website") || g("Website URL");
   const menu = g("menu_url");
   const maps = g("maps_url") || g("Maps URL");
-  const region = g("region") || g("Region/Country") || g("Region");
+  const city = g("area_town_city") || g("area__town__city");
   const cuisine = g("cuisine");
   const opening = g("opening_hours") || g("Opening Hours");
   const tagsRaw = g("tags") || g("search_tags") || g("Tags");
@@ -321,9 +321,9 @@ function VenueCard({ v }) {
               <div style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>{cuisine}</div>
             )}
           </div>
-          {(region) && (
+          {city && (
             <span style={{ fontSize: 12, padding: "2px 8px", border: "1px solid #e5e7eb", borderRadius: 12, color: "#374151", whiteSpace: "nowrap" }}>
-              {region}
+              {city}
             </span>
           )}
         </div>
