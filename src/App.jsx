@@ -247,6 +247,7 @@ function VenueCard({ v }) {
   const brand = g("brand_name") || g("Brand Name") || g("slug") || "Unknown";
   const widget = g("booking_widget_url") || g("Widget URL (canonical)") || g("iFrame URL") || g("View URL");
   const logoFull = g("logo_url_full");
+  const logoBg = (g("logo_bg") || "none").toLowerCase();
   const favicon = g("favicon_url");
   const address = g("location_address") || g("Address");
   const website = g("website_url") || g("Official Website") || g("Website URL");
@@ -290,17 +291,40 @@ function VenueCard({ v }) {
     boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
   };
 
+  const logoWrapperBg =
+    logoBg === "dark" ? "#2b2f36" :
+    logoBg === "pink" ? "#fce7f3" :
+    "transparent";
+
+  const logoWrapperStyle =
+    logoBg === "none" || !logoBg
+      ? { display: "contents" }
+      : {
+          background: logoWrapperBg,
+          borderRadius: 8,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+        };
+
+  const logoImageStyle =
+    logoBg === "none" || !logoBg
+      ? { maxWidth: "90%", maxHeight: "90%", width: "auto", height: "auto", objectFit: "contain", display: "block", background: "#fff", boxShadow: "0 0 0 1px rgba(0,0,0,0.04)" }
+      : { maxWidth: "90%", maxHeight: "90%", width: "auto", height: "auto", objectFit: "contain", display: "block", background: "transparent" };
+
   return (
     <div style={card}>
       <div style={top}>
         {logoFull && logoOk ? (
-          <img
-            src={logoFull}
-            alt={`${brand} logo`}
-            style={{ maxWidth: "90%", maxHeight: "90%", width: "auto", height: "auto", objectFit: "contain", display: "block", background: "#fff", boxShadow: "0 0 0 1px rgba(0,0,0,0.04)" }}
-            loading="lazy"
-            onError={() => setLogoOk(false)}
-          />
+          <div style={logoWrapperStyle}>
+            <img
+              src={logoFull}
+              alt={`${brand} logo`}
+              style={logoImageStyle}
+              loading="lazy"
+              onError={() => setLogoOk(false)}
+            />
+          </div>
         ) : favicon ? (
           <img
             src={favicon}
